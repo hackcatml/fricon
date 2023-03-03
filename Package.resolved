@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "argparser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/dmulholl/argparser.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "587a076c664c0e7dd65cac535367bba50808c04c"
+      }
+    }
+  ],
+  "version" : 2
+}
