@@ -197,6 +197,10 @@ public struct friconswift {
                 .callback({ (_: String, cmdParser: ArgParser) in
                     guard cmdParser.found("version") else {
                         let fridaVersion = task(launchPath: "/bin/bash", arguments: "-c", "curl -sLI https://github.com/frida/frida/releases/latest | grep location: | cut -d ' ' -f 2 | cut -d '/' -f 8")
+                        guard fridaVersion != "" else {
+                            print("\nInstall curl first. apt-get install curl")
+                            return
+                        }
                         print("latest frida version: \(fridaVersion)")
                         downloadFrida(fridaVersion: fridaVersion)
                         return
