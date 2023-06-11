@@ -3,9 +3,29 @@ import os
 import ArgParser
 
 let fridaplistPath: String = "/Library/LaunchDaemons/re.frida.server.plist"
+let fridaserverPath: String = "/usr/sbin/frida-server"
+let bashPath: String = "/bin/bash"
+let rootlessPrefix: String = "/var/jb"
+
+// Check if it's rootless
+func isRootless() -> Bool {
+    let rootlessPath = "/var/jb/usr/bin/su"
+    if access(rootlessPath, F_OK) == 0 {
+        return true
+    }
+    return false
+}
+
+func rootlessPath(path: String) -> String {
+    var path = path
+    if isRootless() {
+        path = rootlessPrefix + path
+    }
+    return path
+}
 
 func isProcessRunning(_ processName: String) -> Bool {
-    let output = task(launchPath: "/bin/bash", arguments: "-c", "ps ax | grep '\(processName)' | grep -v grep | wc -l")
+    let output = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "ps ax | grep '\(processName)' | grep -v grep | wc -l")
     guard output != "0" else {
         return false
     }
@@ -13,11 +33,12 @@ func isProcessRunning(_ processName: String) -> Bool {
 }
 
 func fridaStop() -> Void {
-    print("frida-server stopped\n\(task(launchPath: "/bin/bash", arguments: "-c", "launchctl unload /Library/LaunchDaemons/re.frida.server.plist 2>/dev/null"))")
+    let argument: String = "launchctl unload " + rootlessPath(path: fridaplistPath) + " 2>/dev/null"
+    print("frida-server stopped\n\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", argument))")
     // if still frida-server is running. kill it
     while isProcessRunning("frida-server") {
-        let pid = task(launchPath: "/bin/bash", arguments: "-c", "ps ax | grep 'frida-server' | grep -v grep | cut -d' ' -f 2")
-        print("\(task(launchPath: "/bin/bash", arguments: "-c", "kill -9 \(pid)"))\n")
+        let pid = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "ps ax | grep 'frida-server' | grep -v grep | cut -d' ' -f 2")
+        print("\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "kill -9 \(pid)"))\n")
     }
 }
 
@@ -30,16 +51,17 @@ func checkWeirdFridaProcess(withArgs: Bool, op1: String?, op2: String?) -> Void 
         var pid: pid_t = 0
         var status: Int32 = 0
         var cStrings: [UnsafeMutablePointer<CChar>?] = []
+        let fridaServerPath = rootlessPath(path: fridaserverPath)
         if let op1 = op1, let op2 = op2, withArgs {
-            cStrings.append(strdup("/usr/sbin/frida-server"))
+            cStrings.append(strdup(fridaServerPath))
             cStrings.append(strdup(op1))
             cStrings.append(strdup(op2))
             cStrings.append(nil)
         } else {
-            cStrings.append(strdup("/usr/sbin/frida-server"))
+            cStrings.append(strdup(fridaServerPath))
             cStrings.append(nil)
         }
-        posix_spawn(&pid, "/usr/sbin/frida-server", nil, nil, &cStrings, nil)
+        posix_spawn(&pid, fridaServerPath, nil, nil, &cStrings, nil)
         waitpid(pid, &status, WEXITED)
         print("frida-server is now on\n")
         
@@ -51,7 +73,7 @@ func checkWeirdFridaProcess(withArgs: Bool, op1: String?, op2: String?) -> Void 
 }
 
 func installFrida(filePath: String) -> Void {
-    print("\(task(launchPath: "/bin/bash", arguments: "-c", "dpkg -i \(filePath) 2>/dev/null"))\n")
+    print("\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "dpkg -i \(filePath) 2>/dev/null"))\n")
     checkWeirdFridaProcess(withArgs: false, op1: nil, op2: nil)
 }
 
@@ -65,12 +87,12 @@ func downloadFrida(fridaVersion: String) {
     // Check if frida-server file already exists at current directory.
     let currDir = FileManager.default.currentDirectoryPath
     let filePath = "\(currDir)/frida-server-\(fridaVersion)"
-    if FileManager.default.fileExists(atPath: filePath) {
+    if FileManager.default.fileExists(atPath: filePath + (isRootless() ? "-rootless.deb" : ".deb")) {
         print("frida-server file already exists. Installing...")
-        installFrida(filePath: filePath)
+        installFrida(filePath: filePath + (isRootless() ? "-rootless.deb" : ".deb"))
         exit(0)
     }
-
+    
     // Create download task.
     let task = URLSession.shared.downloadTask(with: url) { (location, response, error) in
         if let error = error {
@@ -85,10 +107,24 @@ func downloadFrida(fridaVersion: String) {
         
         let fileManager = FileManager.default
         do {
-            try fileManager.copyItem(atPath: location.path, toPath: filePath)
-            print("File download and save success at \(filePath)")
+            try fileManager.copyItem(atPath: location.path, toPath: filePath + ".deb")
+            print("File download and save success at \(filePath).deb")
+            if isRootless() {
+                fridaPatch(filePath: filePath + ".deb", version: fridaVersion)
+                // Remove non rootless deb
+                try fileManager.removeItem(atPath: filePath + ".deb")
+            }
+            // Patch done. Let's install frida-server
             print("Installing frida...")
-            installFrida(filePath: filePath)
+            installFrida(filePath: filePath + (isRootless() ? "-rootless.deb" : ".deb"))
+            
+            // Remove CFNetworkDownload.tmp file
+            let fileURLs = try fileManager.contentsOfDirectory(at: URL(string: NSTemporaryDirectory())!, includingPropertiesForKeys: nil)
+            for fileURL in fileURLs {
+                if fileURL.absoluteString.contains("CFNetworkDownload") {
+                    try fileManager.removeItem(at: fileURL)
+                }
+            }
             exit(0)
         } catch let error {
             print("File save error: \(error.localizedDescription)")
@@ -104,7 +140,7 @@ func downloadFrida(fridaVersion: String) {
 // check if frida-server is installed
 func isFridaInstalled() -> Bool {
     let fileManager = FileManager.default
-    let installed: Bool = fileManager.fileExists(atPath: fridaplistPath)
+    let installed: Bool = fileManager.fileExists(atPath: rootlessPath(path: fridaplistPath))
     return installed;
 }
 
@@ -113,26 +149,26 @@ func showStat(processName: String) -> Void {
         print("frida-server is not running\n")
         return
     }
-    print("\(task(launchPath: "/bin/bash", arguments: "-c", "ps -ef | grep '\(processName)' | grep -v grep"))\n")
+    print("\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "ps -ef | grep '\(processName)' | grep -v grep"))\n")
 }
 
 func writeFridaPlist(op1: String?, op2: String?) {
-    guard let dict = NSMutableDictionary(contentsOfFile: fridaplistPath) else {
+    guard let dict = NSMutableDictionary(contentsOfFile: rootlessPath(path: fridaplistPath)) else {
         return
     }
     let programArguments = dict["ProgramArguments"] as! NSMutableArray
     programArguments.add(op1 as Any)
     programArguments.add(op2 as Any)
-    dict.write(toFile: fridaplistPath, atomically: true)
+    dict.write(toFile: rootlessPath(path: fridaplistPath), atomically: true)
 }
 
 func recoverFridaPlist() {
-    let origProgramArguments = "/usr/sbin/frida-server"
-    guard let dict = NSMutableDictionary(contentsOfFile: fridaplistPath) else {
+    let origProgramArguments = rootlessPath(path: fridaserverPath)
+    guard let dict = NSMutableDictionary(contentsOfFile: rootlessPath(path: fridaplistPath)) else {
         return
     }
     dict.setObject([origProgramArguments], forKey: "ProgramArguments" as NSCopying)
-    dict.write(toFile: fridaplistPath, atomically: true)
+    dict.write(toFile: rootlessPath(path: fridaplistPath), atomically: true)
 }
 
 func fridaStart(withArgs: Bool, op1: String?, op2: String?) {
@@ -145,14 +181,15 @@ func fridaStart(withArgs: Bool, op1: String?, op2: String?) {
         return
     }
     
+    let argument: String = "launchctl load " + rootlessPath(path: fridaplistPath) + " 2>/dev/null"
     guard !isProcessRunning("frida-server") else {
         print("frida-server is already running. restarting...\n\n")
         fridaStop()
-        print("frida-server is now on\n\(task(launchPath: "/bin/bash", arguments: "-c", "launchctl load /Library/LaunchDaemons/re.frida.server.plist 2>/dev/null"))")
+        print("frida-server is now on\n\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", argument))")
         checkWeirdFridaProcess(withArgs: withArgs, op1: op1, op2: op2)
         return
     }
-    print("frida-server is now on\n\(task(launchPath: "/bin/bash", arguments: "-c", "launchctl load /Library/LaunchDaemons/re.frida.server.plist 2>/dev/null"))")
+    print("frida-server is now on\n\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", argument))")
     checkWeirdFridaProcess(withArgs: withArgs, op1: op1, op2: op2)
 }
 
@@ -196,7 +233,7 @@ public struct friconswift {
             .command("download", ArgParser()
                 .callback({ (_: String, cmdParser: ArgParser) in
                     guard cmdParser.found("version") else {
-                        let fridaVersion = task(launchPath: "/bin/bash", arguments: "-c", "curl -sLI https://github.com/frida/frida/releases/latest | grep location: | cut -d ' ' -f 2 | cut -d '/' -f 8")
+                        let fridaVersion = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "curl -sLI https://github.com/frida/frida/releases/latest | grep location: | cut -d ' ' -f 2 | cut -d '/' -f 8")
                         guard fridaVersion != "" else {
                             print("\nInstall curl first. apt-get install curl")
                             return
@@ -234,7 +271,7 @@ public struct friconswift {
                         print("frida-server is not installed yet\n\n")
                         return
                     }
-                    print("frida-server version: \(task(launchPath: "/bin/bash", arguments: "-c", "frida-server --version"))\n")
+                    print("frida-server version: \(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "frida-server --version"))\n")
                 })
             )
             .command("remove", ArgParser()
@@ -243,7 +280,7 @@ public struct friconswift {
                         print("frida-server is not installed yet\n")
                         return
                     }
-                    print("\(task(launchPath: "/bin/bash", arguments: "-c", "dpkg --purge re.frida.server"))\n")
+                    print("\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "dpkg --purge re.frida.server"))\n")
                     print("frida-server is removed\n")
                 })
             )
