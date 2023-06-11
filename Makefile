@@ -4,7 +4,7 @@ ARCHS := arm64
 
 THEOS_DEVICE_IP = localhost -p 2222
 
-ROOTLESS = 1
+#ROOTLESS = 1
 
 # swift package location
 XCDD_TOP = $(HOME)/Library/Developer/Xcode/DerivedData/

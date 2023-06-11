@@ -108,14 +108,14 @@ func downloadFrida(fridaVersion: String) {
         let fileManager = FileManager.default
         do {
             try fileManager.copyItem(atPath: location.path, toPath: filePath + ".deb")
-            print("File download and save success at \(filePath).deb")
+            print("File download and save success at \(filePath).deb\n")
             if isRootless() {
                 fridaPatch(filePath: filePath + ".deb", version: fridaVersion)
                 // Remove non rootless deb
                 try fileManager.removeItem(atPath: filePath + ".deb")
             }
             // Patch done. Let's install frida-server
-            print("Installing frida...")
+            print("[*] Installing frida...")
             installFrida(filePath: filePath + (isRootless() ? "-rootless.deb" : ".deb"))
             
             // Remove CFNetworkDownload.tmp file
@@ -232,6 +232,7 @@ public struct friconswift {
             )
             .command("download", ArgParser()
                 .callback({ (_: String, cmdParser: ArgParser) in
+                    print("[*] Downloading frida...")
                     guard cmdParser.found("version") else {
                         let fridaVersion = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "curl -sLI https://github.com/frida/frida/releases/latest | grep location: | cut -d ' ' -f 2 | cut -d '/' -f 8")
                         guard fridaVersion != "" else {

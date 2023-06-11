@@ -115,8 +115,9 @@ func patch(fileURL: URL) -> Void {
 }
 
 func repackage(fileURL: URL, version: String) -> Void {
-    print("Repackaging patched frida-server...")
+    print("\n[*] Repackaging patched frida-server...")
     print("\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "fakeroot dpkg-deb -b \(fileURL.path) ./frida-server-\(version)-rootless.deb"))")
+    print("")
 }
 
 func fridaPatch(filePath: String, version: String) -> Void {
@@ -128,7 +129,7 @@ func fridaPatch(filePath: String, version: String) -> Void {
 
     do {
         try fileMgr.createDirectory(atPath: depackageURL!.path, withIntermediateDirectories: true, attributes: nil)
-        print("\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "dpkg-deb -R \(filePath) \(depackagePath)"))")
+        print("[*] Patching frida for rootless...\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "dpkg-deb -R \(filePath) \(depackagePath)"))")
         
         let dirs = [
             ("DEBIAN", "/DEBIAN"),
