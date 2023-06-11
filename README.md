@@ -6,5 +6,6 @@ It temporarily supports rootless by patching the original `frida_{version}_iphon
 It depends on `curl`, `fakeroot` (for rootless)<br>
 Install those dependencies from Sileo first<br>
 Other than that, It's ready to serve you :)
-<img width="1076" alt="image" src="https://github.com/hackcatml/fricon-swift/assets/75507443/0155d775-44fe-48fc-ba0f-9ae52e23d070">
+<img width="1070" alt="image" src="https://github.com/hackcatml/fricon-swift/assets/75507443/3913bb5a-5fd5-4dd4-8a50-debfb4b1fa33">
+
 
