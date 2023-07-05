@@ -1,6 +1,6 @@
 FINALPACKAGE := 1
 TARGET := iphone:clang:latest:14.2
-ARCHS := arm64
+ARCHS := arm64 arm64e
 
 THEOS_DEVICE_IP = localhost -p 2222
 

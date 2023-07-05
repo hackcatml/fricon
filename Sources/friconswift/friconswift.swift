@@ -119,11 +119,19 @@ func downloadFrida(fridaVersion: String) {
             installFrida(filePath: filePath + (isRootless() ? "-rootless.deb" : ".deb"))
             
             // Remove CFNetworkDownload.tmp file
-            let fileURLs = try fileManager.contentsOfDirectory(at: URL(string: NSTemporaryDirectory())!, includingPropertiesForKeys: nil)
-            for fileURL in fileURLs {
-                if fileURL.absoluteString.contains("CFNetworkDownload") {
-                    try fileManager.removeItem(at: fileURL)
+            do {
+                let fileURLs = try fileManager.contentsOfDirectory(at: URL(fileURLWithPath: NSTemporaryDirectory()).resolvingSymlinksInPath(), includingPropertiesForKeys: nil)
+                for fileURL in fileURLs {
+                    if fileURL.absoluteString.contains("CFNetworkDownload") {
+                        do {
+                            try fileManager.removeItem(at: fileURL)
+                        } catch {
+                            print("Error removing file: \(error)")
+                        }
+                    }
                 }
+            } catch {
+                print("Error getting contents of temp directory: \(error)")
             }
             exit(0)
         } catch let error {
