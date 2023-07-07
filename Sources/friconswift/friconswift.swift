@@ -7,6 +7,9 @@ let fridaserverPath: String = "/usr/sbin/frida-server"
 let bashPath: String = "/bin/bash"
 let rootlessPrefix: String = "/var/jb"
 
+var fridaVersion: String?
+let dispatchGroup = DispatchGroup()
+
 // Check if it's rootless
 func isRootless() -> Bool {
     let rootlessPath = "/var/jb/usr/bin/su"
@@ -201,6 +204,27 @@ func fridaStart(withArgs: Bool, op1: String?, op2: String?) {
     checkWeirdFridaProcess(withArgs: withArgs, op1: op1, op2: op2)
 }
 
+class DelegateToHandle302: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        if let locationString = response.allHeaderFields["Location"] as? String {
+            let versionURL = URL(string: locationString)
+            fridaVersion = versionURL?.lastPathComponent
+        }
+        dispatchGroup.leave()
+    }
+}
+
+func getLatestFridaVersion() -> String? {
+    let url = URL(string: "https://github.com/frida/frida/releases/latest")!
+    let session = URLSession(configuration: URLSessionConfiguration.default, delegate: DelegateToHandle302(), delegateQueue: nil)
+
+    dispatchGroup.enter()
+    let _ = session.dataTask(with: url).resume()
+
+    dispatchGroup.wait()
+    return fridaVersion
+}
+
 let helpString: String = """
 \nUsage: fricon <command> [options]\n
 Commnad:
@@ -242,13 +266,12 @@ public struct friconswift {
                 .callback({ (_: String, cmdParser: ArgParser) in
                     print("[*] Downloading frida...")
                     guard cmdParser.found("version") else {
-                        let fridaVersion = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "curl -sLI https://github.com/frida/frida/releases/latest | grep location: | cut -d ' ' -f 2 | cut -d '/' -f 8")
-                        guard fridaVersion != "" else {
-                            print("\nInstall curl first. apt-get install curl")
-                            return
+                        if let version = getLatestFridaVersion() {
+                            print("Latest Frida version: \(version)")
+                            downloadFrida(fridaVersion: version)
+                        } else {
+                            print("Unable to get the latest frida version")
                         }
-                        print("latest frida version: \(fridaVersion)")
-                        downloadFrida(fridaVersion: fridaVersion)
                         return
                     }
                     let fridaVersion = cmdParser.value("version")!

@@ -116,7 +116,7 @@ func patch(fileURL: URL) -> Void {
 
 func repackage(fileURL: URL, version: String) -> Void {
     print("\n[*] Repackaging patched frida-server...")
-    print("\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "fakeroot dpkg-deb -b \(fileURL.path) ./frida-server-\(version)-rootless.deb"))")
+    print("\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "dpkg-deb -b \(fileURL.path) ./frida-server-\(version)-rootless.deb"))")
     print("")
 }
 
