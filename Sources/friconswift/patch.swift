@@ -61,6 +61,10 @@ func patch(fileURL: URL) -> Void {
             if content.contains("/usr/sbin/frida-server") {
                 // Replace the string
                 content = content.replacingOccurrences(of: "/usr/sbin/frida-server", with: "/var/jb/usr/sbin/frida-server")
+                // Remove LimitLoadToSessionType key and value
+                // If not, frida-server cannot be loaded on rootless jb with this reason: "Service cannot load in requested session"
+                content = content.replacingOccurrences(of: "LimitLoadToSessionType", with: "")
+                content = content.replacingOccurrences(of: "System", with: "")
                 
                 // Write the updated content back to the file
                 try content.write(toFile: fileURL.path, atomically: false, encoding: .utf8)
