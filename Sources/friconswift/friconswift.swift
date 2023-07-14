@@ -78,6 +78,21 @@ func checkWeirdFridaProcess(withArgs: Bool, op1: String?, op2: String?) -> Void 
 func installFrida(filePath: String) -> Void {
     print("\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "dpkg -i \(filePath) 2>/dev/null"))\n")
     checkWeirdFridaProcess(withArgs: false, op1: nil, op2: nil)
+    if !isRootless(), ProcessInfo().operatingSystemVersion.majorVersion >= 16 {
+        do {
+            // On iOS 16+ rootful? if not patch frida's plist, launchctl load is not working
+            let patchTargets: URL = URL(fileURLWithPath: "/Library/LaunchDaemons/re.frida.server.plist")
+            var content = try String(contentsOfFile: patchTargets.path, encoding: .utf8)
+            if content.contains("LimitLoadToSessionType") {
+                content = content.replacingOccurrences(of: "LimitLoadToSessionType", with: "")
+                content = content.replacingOccurrences(of: "System", with: "")
+                try content.write(toFile: patchTargets.path, atomically: false, encoding: .utf8)
+            }
+        } catch {
+            print("Error patching re.frida.server.plist: \(error)")
+        }
+        fridaStart(withArgs: false, op1: nil, op2: nil)
+    }
 }
 
 func downloadFrida(fridaVersion: String) {
