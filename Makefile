@@ -4,7 +4,7 @@ ARCHS := arm64 arm64e
 
 THEOS_DEVICE_IP = localhost -p 2222
 
-#ROOTLESS = 1
+ROOTLESS = 1
 
 # swift package location
 XCDD_TOP = $(HOME)/Library/Developer/Xcode/DerivedData/
@@ -25,7 +25,8 @@ endif
 # Define included files, imported frameworks, etc.
 
 TOOL_NAME = fricon
-$(TOOL_NAME)_FILES = $(shell find Sources/friconswift -name '*.swift') $(wildcard $(shell find $(MOD_LOC) -name '*.swift'))
+$(TOOL_NAME)_FILES = $(shell find Sources/friconswift -name '*.swift') $(wildcard $(shell find $(MOD_LOC) -name '*.swift')) $(shell find $(THEOS)/include/cdaswift -name '*.mm')
+$(TOOL_NAME)_PRIVATE_FRAMEWORKS = MobileCoreServices
 $(TOOL_NAME)_INSTALL_PATH = $(TOOL_INSTALL_PATH)
 	
 before-package::

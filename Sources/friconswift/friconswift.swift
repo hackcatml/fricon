@@ -1,6 +1,7 @@
 import Foundation
 import os
 import ArgParser
+import cdaswift
 
 let fridaplistPath: String = "/Library/LaunchDaemons/re.frida.server.plist"
 let fridaserverPath: String = "/usr/sbin/frida-server"
@@ -9,6 +10,9 @@ let rootlessPrefix: String = "/var/jb"
 
 var fridaVersion: String?
 let dispatchGroup = DispatchGroup()
+
+let isDopamine: Bool = AppUtils.sharedInstance().searchAppExecutable("com.opa334.Dopamine") != "Nope" ? true : false
+let fridaVersionForDopamine: [String] = (11...19).map { "16.0.\($0)" } + (0...3).map { "16.1.\($0)" }
 
 // Check if it's rootless
 func isRootless() -> Bool {
@@ -37,17 +41,18 @@ func isProcessRunning(_ processName: String) -> Bool {
 
 func fridaStop() -> Void {
     let argument: String = "launchctl unload " + rootlessPath(path: fridaplistPath) + " 2>/dev/null"
-    print("frida-server stopped\n\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", argument))")
+    let _ = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", argument)
+    print("frida-server stopped\n")
     // if still frida-server is running. kill it
     while isProcessRunning("frida-server") {
         let pid = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "ps ax | grep 'frida-server' | grep -v grep | cut -d' ' -f 2")
-        print("\(task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "kill -9 \(pid)"))\n")
+        let _ = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "kill -9 \(pid)")
     }
 }
 
 func checkWeirdFridaProcess(withArgs: Bool, op1: String?, op2: String?) -> Void {
     if isProcessRunning("xpcproxy re.frida.server") {
-        print("weird xpcproxy re.frida.server process. restart...\n")
+        print("[!] weird xpcproxy re.frida.server process. restart...\n")
         fridaStop()
                 
         // start frida-server again as manual
@@ -89,16 +94,24 @@ func installFrida(filePath: String) -> Void {
                 try content.write(toFile: patchTargets.path, atomically: false, encoding: .utf8)
             }
         } catch {
-            print("Error patching re.frida.server.plist: \(error)")
+            print("[!] Error patching re.frida.server.plist: \(error)")
         }
         fridaStart(withArgs: false, op1: nil, op2: nil)
     }
 }
 
 func downloadFrida(fridaVersion: String) {
-    let downloadURL = "https://github.com/frida/frida/releases/download/\(fridaVersion)/frida_\(fridaVersion)_iphoneos-arm.deb"
+    var downloadURL = "https://github.com/frida/frida/releases/download/\(fridaVersion)/frida_\(fridaVersion)_iphoneos-arm.deb"
+    if isDopamine {
+        if !fridaVersionForDopamine.contains(fridaVersion) {
+            print("\(fridaVersion) is not supported on Dopamine JB")
+            exit(1)
+        }
+        print("\n[*] It's Dopamine. Download frida-server from miticollo's Repo(https://miticollo.github.io/repos/my)")
+        downloadURL = "https://miticollo.github.io/repos/my/debs/frida/frida_\(fridaVersion)_iphoneos-universal.deb"
+    }
     guard let url = URL(string: downloadURL) else {
-        print("Error: Invalid URL")
+        print("[!] Error: Invalid URL")
         exit(-1)
     }
 
@@ -112,14 +125,14 @@ func downloadFrida(fridaVersion: String) {
     }
     
     // Create download task.
-    let task = URLSession.shared.downloadTask(with: url) { (location, response, error) in
+    let downloadTask = URLSession.shared.downloadTask(with: url) { (location, response, error) in
         if let error = error {
-            print("Download error: \(error.localizedDescription)")
+            print("[!] Download error: \(error.localizedDescription)")
             exit(-1)
         }
         
         guard let location = location else {
-            print("Error: Invalid download location")
+            print("[!] Error: Invalid download location")
             exit(-1)
         }
         
@@ -128,7 +141,11 @@ func downloadFrida(fridaVersion: String) {
             try fileManager.copyItem(atPath: location.path, toPath: filePath + ".deb")
             print("File download and save success at \(filePath).deb\n")
             if isRootless() {
-                fridaPatch(filePath: filePath + ".deb", version: fridaVersion)
+                if isDopamine {
+                    let _ = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "cp \(filePath + ".deb") ./frida-server-\(fridaVersion)-rootless.deb")
+                } else {
+                    fridaPatch(filePath: filePath + ".deb", version: fridaVersion)
+                }
                 // Remove non rootless deb
                 try fileManager.removeItem(atPath: filePath + ".deb")
             }
@@ -144,22 +161,22 @@ func downloadFrida(fridaVersion: String) {
                         do {
                             try fileManager.removeItem(at: fileURL)
                         } catch {
-                            print("Error removing file: \(error)")
+                            print("[!] Error removing file: \(error)")
                         }
                     }
                 }
             } catch {
-                print("Error getting contents of temp directory: \(error)")
+                print("[!] Error getting contents of temp directory: \(error)")
             }
             exit(0)
         } catch let error {
-            print("File save error: \(error.localizedDescription)")
+            print("[!] File save error: \(error.localizedDescription)")
             exit(-1)
         }
     }
     
     // Start download task.
-    task.resume()
+    downloadTask.resume()
     dispatchMain()
 }
 
@@ -230,6 +247,10 @@ class DelegateToHandle302: NSObject, URLSessionTaskDelegate {
 }
 
 func getLatestFridaVersion() -> String? {
+    if isDopamine {
+        return fridaVersionForDopamine.last
+    }
+    
     let url = URL(string: "https://github.com/frida/frida/releases/latest")!
     let session = URLSession(configuration: URLSessionConfiguration.default, delegate: DelegateToHandle302(), delegateQueue: nil)
 
