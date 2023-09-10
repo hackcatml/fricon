@@ -12,7 +12,7 @@ var fridaVersion: String?
 let dispatchGroup = DispatchGroup()
 
 let isDopamine: Bool = AppUtils.sharedInstance().searchAppExecutable("com.opa334.Dopamine") != "Nope" ? true : false
-let fridaVersionForDopamine: [String] = (11...19).map { "16.0.\($0)" } + (0...3).map { "16.1.\($0)" }
+let fridaVersionForDopamine: [String] = (11...19).map { "16.0.\($0)" } + (0...4).map { "16.1.\($0)" }
 
 // Check if it's rootless
 func isRootless() -> Bool {
@@ -45,7 +45,7 @@ func fridaStop() -> Void {
     print("frida-server stopped\n")
     // if still frida-server is running. kill it
     while isProcessRunning("frida-server") {
-        let pid = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "ps ax | grep 'frida-server' | grep -v grep | cut -d' ' -f 2")
+        let pid = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "ps ax | grep 'frida-server' | grep -v grep | tr -s ' ' | cut -d' ' -f 2")
         let _ = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "kill -9 \(pid)")
     }
 }
