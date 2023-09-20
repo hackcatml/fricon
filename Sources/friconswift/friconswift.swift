@@ -102,14 +102,21 @@ func installFrida(filePath: String) -> Void {
 
 func downloadFrida(fridaVersion: String) {
     var downloadURL = "https://github.com/frida/frida/releases/download/\(fridaVersion)/frida_\(fridaVersion)_iphoneos-arm.deb"
+    
+    // frida officialy supports rootless jb from 16.1.4
+    if isRootless() && fridaVersion >= "16.1.4" {
+        downloadURL = "https://github.com/frida/frida/releases/download/\(fridaVersion)/frida_\(fridaVersion)_iphoneos-arm64.deb"
+    }
+    
     if isDopamine {
         if !fridaVersionForDopamine.contains(fridaVersion) {
-            print("\(fridaVersion) is not supported on Dopamine JB")
+            print("\(fridaVersion) is not supported on Dopamine JB. Choose 16.0.11 ~ 16.1.4")
             exit(1)
         }
         print("\n[*] It's Dopamine. Download frida-server from miticollo's Repo(https://miticollo.github.io/repos/my)")
         downloadURL = "https://miticollo.github.io/repos/my/debs/frida/frida_\(fridaVersion)_iphoneos-universal.deb"
     }
+    
     guard let url = URL(string: downloadURL) else {
         print("[!] Error: Invalid URL")
         exit(-1)
@@ -143,8 +150,10 @@ func downloadFrida(fridaVersion: String) {
             if isRootless() {
                 if isDopamine {
                     let _ = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "cp \(filePath + ".deb") ./frida-server-\(fridaVersion)-rootless.deb")
-                } else {
+                } else if fridaVersion < "16.1.4" { // rootless && frida < 16.1.4, need to patch frida-server
                     fridaPatch(filePath: filePath + ".deb", version: fridaVersion)
+                } else { // rootless && frida >= 16.1.4, don't have to patch frida-server
+                    let _ = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "cp \(filePath + ".deb") ./frida-server-\(fridaVersion)-rootless.deb")
                 }
                 // Remove non rootless deb
                 try fileManager.removeItem(atPath: filePath + ".deb")

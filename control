@@ -1,6 +1,6 @@
 Package: com.hackcatml.fricon
 Name: fricon
-Version: 0.0.7
+Version: 0.0.8
 Architecture: iphoneos-arm
 Description: Comfy frida installation tool
 Maintainer: hackcatml
