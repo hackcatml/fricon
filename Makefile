@@ -4,7 +4,7 @@ ARCHS := arm64 arm64e
 
 THEOS_DEVICE_IP = localhost -p 2222
 
-ROOTLESS = 1
+#ROOTLESS = 1
 
 # swift package location
 XCDD_TOP = $(HOME)/Library/Developer/Xcode/DerivedData/
@@ -19,7 +19,7 @@ THEOS_PACKAGE_SCHEME =
 TOOL_INSTALL_PATH = /usr/local/bin
 ifeq ($(ROOTLESS),1)
 	THEOS_PACKAGE_SCHEME = rootless
-	TOOL_INSTALL_PATH = /var/jb/usr/bin
+	TOOL_INSTALL_PATH = /usr/bin
 endif
 
 # Define included files, imported frameworks, etc.

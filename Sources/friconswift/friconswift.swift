@@ -100,11 +100,26 @@ func installFrida(filePath: String) -> Void {
     }
 }
 
+func fridaVersionCompare(_ v1: String, _ v2: String) -> Bool {
+    let components1 = v1.split(separator: ".").compactMap { Int($0) }
+    let components2 = v2.split(separator: ".").compactMap { Int($0) }
+
+    for (component1, component2) in zip(components1, components2) {
+        if component1 >= component2 {
+            return true
+        } else if component1 < component2 {
+            return false
+        }
+    }
+
+    return components1.count >= components2.count
+}
+
 func downloadFrida(fridaVersion: String) {
     var downloadURL = "https://github.com/frida/frida/releases/download/\(fridaVersion)/frida_\(fridaVersion)_iphoneos-arm.deb"
     
     // frida officialy supports rootless jb from 16.1.4
-    if isRootless() && fridaVersion >= "16.1.4" {
+    if isRootless() && fridaVersionCompare(fridaVersion, "16.1.4") {
         downloadURL = "https://github.com/frida/frida/releases/download/\(fridaVersion)/frida_\(fridaVersion)_iphoneos-arm64.deb"
     }
     
@@ -150,7 +165,7 @@ func downloadFrida(fridaVersion: String) {
             if isRootless() {
                 if isDopamine {
                     let _ = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "cp \(filePath + ".deb") ./frida-server-\(fridaVersion)-rootless.deb")
-                } else if fridaVersion < "16.1.4" { // rootless && frida < 16.1.4, need to patch frida-server
+                } else if !fridaVersionCompare(fridaVersion, "16.1.4") { // rootless && frida < 16.1.4, need to patch frida-server
                     fridaPatch(filePath: filePath + ".deb", version: fridaVersion)
                 } else { // rootless && frida >= 16.1.4, don't have to patch frida-server
                     let _ = task(launchPath: rootlessPath(path: bashPath), arguments: "-c", "cp \(filePath + ".deb") ./frida-server-\(fridaVersion)-rootless.deb")
